@@ -3,16 +3,23 @@ CFLAGS = -Wall
 
 LDFLAGS = -L.
 
+# This will run by default at make
 all: main_static
 
+# This will link main.o statically with libhexdump_static.a into main_static
+main_static: main.o libhexdump_static.a
+	$(CC) main.o -L. -lhexdump_static -o main_static
 
-main_static:
+# This will archive hexdump.o and sample.o into libhexdump_static.a
+libhexdump_static.a: hexdump.o sample.o
+	ar rc libhexdump_static.a hexdump.o sample.o
 
-libhexdump_static.a:
 
-
+# This will create the main.o object file
 main.o: main.c
+# This will create the hexdump.o object file
 hexdump.o: hexdump.c
+# This will create the sample.o object file
 sample.o: sample.c
 
 .PHONY:

@@ -5,10 +5,11 @@ LDFLAGS = -L.
 
 all:  main_dynamic
 
-main_dynamic:
+main_dynamic: libhexdump_dynamic.so
+	$(CC) -Wall main.c -o main_dynamic -lhexdump_dynamic -L.
 
-libhexdump_dynamic.so:
-
+libhexdump_dynamic.so: hexdump.o sample.o
+	gcc -shared hexdump.o sample.o -o libhexdump_dynamic.so
 main.o: main.c
 hexdump.o: hexdump.c
 sample.o: sample.c
