@@ -33,7 +33,8 @@ static int pipes[CLIENT_COUNT][2];
 int chld_pid[CLIENT_COUNT];
 
 /* TODO - uncomment this for task 3 */
-/* #define USE_EVENTFD */
+#define USE_EVENTFD
+
 int event_fd;
 
 static void set_event(int index, uint64_t *event)
@@ -77,6 +78,11 @@ static int server(void)
             epoll_ctl(efd, EPOLL_CTL_ADD, pipes[i][PIPE_READ], &ev);
 	}
 
+        /* Add eventfd */
+        ev.data.fd = event_fd;
+        ev.events = EPOLLIN;
+        epoll_ctl(efd, EPOLL_CTL_ADD, event_fd, &ev);
+
 	/* number of received messages */
 	recv_msgs = 0;
 
@@ -88,7 +94,6 @@ static int server(void)
             for (i = 0; i < CLIENT_COUNT; i++) {
                 if ((ret_ev.data.fd == pipes[i][PIPE_READ]) && (ret_ev.events & EPOLLIN) != 0) {
                     printf("We have a message from a client %d!\n", i);
-                    recv_msgs++;
                     recv_count = read(pipes[i][PIPE_READ], msg, MSG_SIZE);
                     DIE(recv_count < 0, "read");
 
@@ -96,6 +101,24 @@ static int server(void)
                     printf("received: %s\n", msg);
                 }
             }
+
+            /* Verify if we received an eventfd */
+            if ((ret_ev.data.fd == event_fd) && ((ret_ev.events & EPOLLIN) !=0)) {
+                printf("We have an event!\n");
+                /* Read 64 bits */
+                recv_count = read(event_fd, &event, 8);
+                DIE(recv_count < 0, "read");
+
+                if ((event & 0xFF00) == (int)MAGIC_EXIT) {
+                    index = get_index(event);
+                    recv_msgs++;
+
+                    epoll_ctl(efd, EPOLL_CTL_DEL, pipes[index][PIPE_READ], &ev);
+                    rc = close(pipes[index][PIPE_READ]);
+                    DIE(rc < 0, "server: close pipe failed");
+                }
+            }
+
 	}
 
 	printf("server: going to wait for clients to end\n");
@@ -139,6 +162,10 @@ static int client(unsigned int index)
 	/* TODO 2 - Init event (see set_event()) and use it to signal the
 	 * server of our termination
 	 */
+        set_event(index, &event);
+        /* Signal for termination*/
+	rc = write(event_fd, &event, sizeof(event));
+	DIE(rc < 0, "write");
 
 	printf("client %d sending MAGIC exit = 0x%lx\n", index,
 			(unsigned long)event);
@@ -168,6 +195,7 @@ int main(void)
 
 #ifdef USE_EVENTFD
 	/* TODO 2 - create eventfd  - (task3) */
+        event_fd = eventfd(1, 0);
 
 #endif
 
