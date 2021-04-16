@@ -64,16 +64,38 @@ static int server(void)
 	printf("server: started\n");
 
 	/* TODO - init epoll and remember to close write pipe heads */
+        efd = epoll_create(2);
 	for (i = 0; i < CLIENT_COUNT; i++) {
+            /* Close write pipe heads */
+            rc = close(pipes[i][PIPE_WRITE]);
+            DIE(rc < 0, "server: close pipe failed");
 
+            /* Init epoll */
+            ev.data.fd  = pipes[i][PIPE_READ];
+            ev.events = EPOLLIN;
+
+            epoll_ctl(efd, EPOLL_CTL_ADD, pipes[i][PIPE_READ], &ev);
 	}
 
 	/* number of received messages */
 	recv_msgs = 0;
 
 	while (recv_msgs < CLIENT_COUNT) {
-		/* TODO - use epoll to wait to read from pipes */
+	    /* TODO - use epoll to wait to read from pipes */
+            struct epoll_event ret_ev;
+            epoll_wait(efd, &ret_ev, 1, -1); 
 
+            for (i = 0; i < CLIENT_COUNT; i++) {
+                if ((ret_ev.data.fd == pipes[i][PIPE_READ]) && (ret_ev.events & EPOLLIN) != 0) {
+                    printf("We have a message from a client %d!\n", i);
+                    recv_msgs++;
+                    recv_count = read(pipes[i][PIPE_READ], msg, MSG_SIZE);
+                    DIE(recv_count < 0, "read");
+
+                    msg[recv_count] = '\0';
+                    printf("received: %s\n", msg);
+                }
+            }
 	}
 
 	printf("server: going to wait for clients to end\n");
