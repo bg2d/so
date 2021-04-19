@@ -29,10 +29,10 @@
 
 /* file names */
 static char *files[] = {
-	"/tmp/slo.txt",
-	"/tmp/oer.txt",
-	"/tmp/rse.txt",
-	"/tmp/ufver.txt"
+	"./slo.txt",
+	"./oer.txt",
+	"./rse.txt",
+	"./ufver.txt"
 };
 
 
@@ -56,8 +56,8 @@ static void open_files(void)
 	DIE(fds == NULL, "malloc");
 
 	for (i = 0; i < n_files; i++) {
-		fds[i] = open(files[i], O_CREAT | O_WRONLY | O_TRUNC, 0666);
-		DIE(fds[i] < 0, "open");
+            fds[i] = open(files[i], O_CREAT | O_WRONLY | O_TRUNC, 0666);
+            DIE(fds[i] < 0, "open");
 	}
 }
 
@@ -100,12 +100,22 @@ static void wait_aio(io_context_t ctx, int nops)
 	int rc, i;
 
 	/* TODO 1 - alloc structure */
+        events = malloc(nops * sizeof(struct io_event));
+        if (NULL == events) {
+            printf("events memory allocation failed! CLOSE\n");
+            exit(-1);
+        }
 
 #ifndef USE_EVENTFD
 	/* TODO 1 - wait for async operations to finish
 	 *
 	 *	Use only io_getevents()
 	 */
+        rc = io_getevents(ctx, nops, nops, events, NULL);
+        if (rc < 0) {
+            printf("io_getevents failed! CLOSE\n");
+            exit(-1);
+        }
 
 #else
 	/* TODO 2 - wait for async operations to finish
@@ -114,6 +124,8 @@ static void wait_aio(io_context_t ctx, int nops)
 	 */
 
 #endif
+
+        free(events);
 
 }
 
@@ -132,9 +144,22 @@ static void do_io_async(void)
 	int n_aio_ops, rc;
 
 	/* TODO 1 - allocate iocb and piocb */
+        iocb = malloc(n_files * sizeof(struct iocb));
+        if (NULL == iocb) {
+            printf("iocb memory allocation failed! CLOSE\n");
+            exit(-1);
+        }
+
+        piocb = malloc(n_files * sizeof(struct iocb *));
+        if (NULL == piocb) {
+            printf("piocb memory allocation failed! CLOSE\n");
+            exit(-1);
+        }
 
 	for (i = 0; i < n_files; i++) {
-		/* TODO 1 - initialiaze iocb and piocb */
+            /* TODO 1 - initialiaze iocb and piocb */
+            piocb[i] = &iocb[i];
+            io_prep_pwrite(&iocb[i], fds[i], g_buffer, BUFSIZ, 0);
 
 
 #ifdef USE_EVENTFD
@@ -144,9 +169,17 @@ static void do_io_async(void)
 	}
 
 	/* TODO 1 - setup aio context */
+        if (io_setup(n_files, &ctx) < 0) {
+            printf("io_setup error! CLOSE\n");
+            exit(-1);
+        }
 
 
 	/* TODO 1 - submit aio */
+        if (io_submit(ctx, n_files, piocb) < 0) {
+            printf("io_submit error! CLOSE\n");
+            exit(-1);
+        }
 
 
 	/* wait for completion*/
@@ -154,6 +187,13 @@ static void do_io_async(void)
 
 
 	/* TODO 1 - destroy aio context */
+        if (io_destroy(ctx) < 0) {
+            printf("io_destroy error! CLOSE\n");
+            exit(-1);
+        }
+
+        free(iocb);
+        free(piocb);
 
 }
 
