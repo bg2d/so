@@ -37,7 +37,7 @@ static char *files[] = {
 
 
 /* TODO 2 - Uncomment this to use eventfd */
-/* #define USE_EVENTFD	1 */
+#define USE_EVENTFD	1 
 
 /* eventfd file descriptor */
 int efd;
@@ -122,6 +122,15 @@ static void wait_aio(io_context_t ctx, int nops)
 	 *
 	 *	Use eventfd for completion notify
 	 */
+        printf("We are waiting here\n");
+        if (read(efd, &efd_ops, sizeof(efd_ops)) < 0) {
+            printf("read error! CLOSE\n");
+            exit(-1);
+        }
+
+        /* We should use epoll here */
+        
+        printf("%lu operations have copleted\n", efd_ops);
 
 #endif
 
@@ -163,7 +172,8 @@ static void do_io_async(void)
 
 
 #ifdef USE_EVENTFD
-		/* TODO 2 - set up eventfd notification */
+            /* TODO 2 - set up eventfd notification */
+            io_set_eventfd(&iocb[i], efd);
 
 #endif
 	}
@@ -194,7 +204,6 @@ static void do_io_async(void)
 
         free(iocb);
         free(piocb);
-
 }
 
 int main(void)
@@ -204,6 +213,7 @@ int main(void)
 
 #ifdef USE_EVENTFD
 	/* TODO 2 - init eventfd */
+        efd = eventfd(0,0);
 
 #endif
 
@@ -211,6 +221,7 @@ int main(void)
 
 #ifdef USE_EVENTFD
 	/* TODO 2 - close eventfd */
+        close(efd);
 
 #endif
 	close_files();
